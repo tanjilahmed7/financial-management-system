@@ -1,6 +1,6 @@
 # Financial Management System
 
-A modern, full-stack financial management application built with Laravel 11, Inertia.js, and React. This application provides comprehensive personal finance tracking with real-time updates, beautiful analytics, and an intuitive user interface.
+A modern, full-stack financial management application built with Laravel 12, Inertia.js, and React. This application provides comprehensive personal finance tracking with real-time updates, beautiful analytics, and an intuitive user interface.
 
 ## 🚀 Features
 

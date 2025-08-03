@@ -103,14 +103,17 @@ export default function Dashboard({
             if (
                 !newTransaction.description ||
                 !newTransaction.amount ||
+                !newTransaction.category ||
                 !newTransaction.fromAccount ||
                 !newTransaction.toAccount
             ) {
+                alert("Please fill in all required fields for transfer");
                 return;
             }
 
             if (newTransaction.fromAccount === newTransaction.toAccount) {
-                return; // Cannot transfer to same account
+                alert("Cannot transfer to the same account");
+                return;
             }
         } else {
             if (
@@ -119,12 +122,14 @@ export default function Dashboard({
                 !newTransaction.category ||
                 !newTransaction.account
             ) {
+                alert("Please fill in all required fields");
                 return;
             }
         }
 
         const numAmount = parseFloat(newTransaction.amount);
-        if (isNaN(numAmount) || numAmount <= 0) {
+        if (isNaN(numAmount)) {
+            alert("Please enter a valid amount");
             return;
         }
 
@@ -134,36 +139,76 @@ export default function Dashboard({
                 : Math.abs(numAmount);
 
         try {
-            // Find category and account IDs
-            const categoryId = categoriesList.find(
-                (cat) => cat.name === newTransaction.category
-            )?.id;
-            const accountId = accountsList.find(
-                (acc) => acc.name === newTransaction.account
-            )?.id;
+            let requestData;
 
-            if (!categoryId || !accountId) {
-                console.error("Category or account not found");
-                console.error("Category:", newTransaction.category);
-                console.error("Account:", newTransaction.account);
-                console.error("Available categories:", categoriesList);
-                console.error("Available accounts:", accountsList);
-                return;
+            if (newTransaction.transactionType === "transfer") {
+                // For transfers, we need category_id, from_account_id and to_account_id
+                const categoryId = categoriesList.find(
+                    (cat) => cat.name === newTransaction.category
+                )?.id;
+                const fromAccountId = accountsList.find(
+                    (acc) => acc.name === newTransaction.fromAccount
+                )?.id;
+                const toAccountId = accountsList.find(
+                    (acc) => acc.name === newTransaction.toAccount
+                )?.id;
+
+                if (!categoryId || !fromAccountId || !toAccountId) {
+                    console.error("Category or accounts not found");
+                    console.error("Category:", newTransaction.category);
+                    console.error("From Account:", newTransaction.fromAccount);
+                    console.error("To Account:", newTransaction.toAccount);
+                    console.error("Available categories:", categoriesList);
+                    console.error("Available accounts:", accountsList);
+                    return;
+                }
+
+                requestData = {
+                    description: newTransaction.description,
+                    amount: finalAmount,
+                    category_id: categoryId,
+                    from_account_id: fromAccountId,
+                    to_account_id: toAccountId,
+                    date: newTransaction.date,
+                    status: newTransaction.status,
+                    type: newTransaction.transactionType,
+                    is_recurring: newTransaction.isRecurring,
+                    recurring_frequency: newTransaction.isRecurring
+                        ? newTransaction.recurringFrequency
+                        : null,
+                };
+            } else {
+                // For income/expense, we need category_id and account_id
+                const categoryId = categoriesList.find(
+                    (cat) => cat.name === newTransaction.category
+                )?.id;
+                const accountId = accountsList.find(
+                    (acc) => acc.name === newTransaction.account
+                )?.id;
+
+                if (!categoryId || !accountId) {
+                    console.error("Category or account not found");
+                    console.error("Category:", newTransaction.category);
+                    console.error("Account:", newTransaction.account);
+                    console.error("Available categories:", categoriesList);
+                    console.error("Available accounts:", accountsList);
+                    return;
+                }
+
+                requestData = {
+                    description: newTransaction.description,
+                    amount: finalAmount,
+                    category_id: categoryId,
+                    account_id: accountId,
+                    date: newTransaction.date,
+                    status: newTransaction.status,
+                    type: newTransaction.transactionType,
+                    is_recurring: newTransaction.isRecurring,
+                    recurring_frequency: newTransaction.isRecurring
+                        ? newTransaction.recurringFrequency
+                        : null,
+                };
             }
-
-            const requestData = {
-                description: newTransaction.description,
-                amount: finalAmount,
-                category_id: categoryId,
-                account_id: accountId,
-                date: newTransaction.date,
-                status: newTransaction.status,
-                type: newTransaction.transactionType,
-                is_recurring: newTransaction.isRecurring,
-                recurring_frequency: newTransaction.isRecurring
-                    ? newTransaction.recurringFrequency
-                    : null,
-            };
 
             console.log("Sending transaction data:", requestData);
 
@@ -195,11 +240,11 @@ export default function Dashboard({
             setIsAddModalOpen(false);
         } catch (error) {
             console.error("Error adding transaction:", error);
-            if (error.response) {
-                console.error("Response data:", error.response.data);
-                console.error("Response status:", error.response.status);
+            if (error.response?.data?.message) {
+                alert(error.response.data.message);
+            } else {
+                alert("Failed to add transaction. Please try again.");
             }
-            alert("Failed to add transaction. Please try again.");
         }
     };
 
@@ -261,7 +306,8 @@ export default function Dashboard({
         if (!editingTransaction) return;
 
         const numAmount = parseFloat(editingTransaction.amount);
-        if (isNaN(numAmount) || numAmount <= 0) {
+        if (isNaN(numAmount)) {
+            alert("Please enter a valid amount");
             return;
         }
 
@@ -320,7 +366,13 @@ export default function Dashboard({
             setIsEditModalOpen(false);
         } catch (error) {
             console.error("Error updating transaction:", error);
-            alert("Failed to update transaction. Please try again.");
+            if (error.response?.data?.message) {
+                alert(error.response.data.message);
+            } else if (error.response?.data?.errors?.amount) {
+                alert(`Amount error: ${error.response.data.errors.amount[0]}`);
+            } else {
+                alert("Failed to update transaction. Please try again.");
+            }
         }
     };
 
@@ -659,6 +711,49 @@ export default function Dashboard({
                                                     />
                                                 </div>
 
+                                                {/* Category field - always visible */}
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="category">
+                                                        Category
+                                                    </Label>
+                                                    <Select
+                                                        value={
+                                                            newTransaction.category
+                                                        }
+                                                        onValueChange={(
+                                                            value
+                                                        ) =>
+                                                            setNewTransaction({
+                                                                ...newTransaction,
+                                                                category: value,
+                                                            })
+                                                        }
+                                                        required
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select category" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {categoriesList.map(
+                                                                (cat) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            cat.id
+                                                                        }
+                                                                        value={
+                                                                            cat.name
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            cat.name
+                                                                        }
+                                                                    </SelectItem>
+                                                                )
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
                                                 {/* Conditional rendering based on transaction type */}
                                                 {newTransaction.transactionType ===
                                                 "transfer" ? (
@@ -758,101 +853,50 @@ export default function Dashboard({
                                                         </div>
                                                     </>
                                                 ) : (
-                                                    <>
-                                                        <div className="space-y-2">
-                                                            <Label htmlFor="category">
-                                                                Category
-                                                            </Label>
-                                                            <Select
-                                                                value={
-                                                                    newTransaction.category
-                                                                }
-                                                                onValueChange={(
-                                                                    value
-                                                                ) =>
-                                                                    setNewTransaction(
-                                                                        {
-                                                                            ...newTransaction,
-                                                                            category:
-                                                                                value,
-                                                                        }
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="account">
+                                                            Account
+                                                        </Label>
+                                                        <Select
+                                                            value={
+                                                                newTransaction.account
+                                                            }
+                                                            onValueChange={(
+                                                                value
+                                                            ) =>
+                                                                setNewTransaction(
+                                                                    {
+                                                                        ...newTransaction,
+                                                                        account:
+                                                                            value,
+                                                                    }
+                                                                )
+                                                            }
+                                                            required
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select account" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {accountsList.map(
+                                                                    (acc) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                acc.id
+                                                                            }
+                                                                            value={
+                                                                                acc.name
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                acc.name
+                                                                            }
+                                                                        </SelectItem>
                                                                     )
-                                                                }
-                                                                required
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="Select category" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {categoriesList.map(
-                                                                        (
-                                                                            cat
-                                                                        ) => (
-                                                                            <SelectItem
-                                                                                key={
-                                                                                    cat.id
-                                                                                }
-                                                                                value={
-                                                                                    cat.name
-                                                                                }
-                                                                            >
-                                                                                {
-                                                                                    cat.name
-                                                                                }
-                                                                            </SelectItem>
-                                                                        )
-                                                                    )}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-
-                                                        <div className="space-y-2">
-                                                            <Label htmlFor="account">
-                                                                Account
-                                                            </Label>
-                                                            <Select
-                                                                value={
-                                                                    newTransaction.account
-                                                                }
-                                                                onValueChange={(
-                                                                    value
-                                                                ) =>
-                                                                    setNewTransaction(
-                                                                        {
-                                                                            ...newTransaction,
-                                                                            account:
-                                                                                value,
-                                                                        }
-                                                                    )
-                                                                }
-                                                                required
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue placeholder="Select account" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {accountsList.map(
-                                                                        (
-                                                                            acc
-                                                                        ) => (
-                                                                            <SelectItem
-                                                                                key={
-                                                                                    acc.id
-                                                                                }
-                                                                                value={
-                                                                                    acc.name
-                                                                                }
-                                                                            >
-                                                                                {
-                                                                                    acc.name
-                                                                                }
-                                                                            </SelectItem>
-                                                                        )
-                                                                    )}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-                                                    </>
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
                                                 )}
 
                                                 <div className="space-y-2">
@@ -1118,13 +1162,14 @@ export default function Dashboard({
                                         type="number"
                                         step="0.01"
                                         value={editingTransaction?.amount || ""}
-                                        onChange={(e) =>
+                                        onChange={(e) => {
                                             setEditingTransaction({
                                                 ...editingTransaction,
                                                 amount: e.target.value,
-                                            })
-                                        }
+                                            });
+                                        }}
                                         placeholder="0.00"
+                                        required
                                     />
                                 </div>
 
